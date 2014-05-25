@@ -1,0 +1,186 @@
+#!/bin/bash
+
+###############################################################################
+#
+#  lxc-gentoo : script to create a micro-gentoo lxc guest
+#  
+#   requires:
+#    - lxc-utils package
+#    - linux kernel with relevant options enabled (see lxc-checkconfig)
+#    - wget and a working internet connection for HTTP fetches
+#	 - cvmfs client
+#	 - autofs and fuse support
+#
+###############################################################################
+
+# Defaults only
+NAME="${NAME:-gentoo}"
+UTSNAME="${UTSNAME:-gentoo}"
+IPV4="${IPV4:-172.20.0.2/24}"
+GATEWAY="${GATEWAY:-172.20.0.1}"
+GUESTROOTPASS="$GUESTROOTPASS"
+ARCHVARIANT="${ARCHVARIANT:-${ARCH}}"
+CONFFILE="$CONFFILE"
+CVMFSCONFIG="$CVMFSCONFIG"
+
+# These paths are within the container so do not need to obey configure prefixes
+INITTAB="/etc/inittab"
+FSTAB="/etc/fstab"
+
+# Ensure strict root's umask doesen't render the VM unusable
+umask 022
+
+mount_cvmfs()
+{
+	# probe the cvmfs repo
+	
+
+	# mount cvmfs repo
+}
+
+configure()
+{
+	if [[ -z ${QUIET} ]]; then
+		# choose a container name, default is already in shell NAME variable
+		read -p "What is the name for the container (recommended <=15 chars)? " -ei "$NAME" NAME
+
+
+		# choose a hostname, default is the container name
+		UTSNAME=${NAME}
+		read -p "What hostname do you wish for this container ? " -ei "$UTSNAME" UTSNAME
+
+
+		# choose an ipv4 address, better to choose the same network than
+		# your host
+		read -p "What IP address do you wish for this container (enter 'dhcp' to use DHCP) ? " -ei "$IPV4" IPV4
+
+
+		# choose the gateway ip address
+		if [ "${IPV4}" != "dhcp" ]; then
+			read -p "What is the gateway IP address ? " -ei "$GATEWAY" GATEWAY
+
+		fi
+
+		# Type guest root password
+		read -s -p "Type guest root password (enter for none/use already defined): "
+		if [[ -n "$REPLY" ]]; then
+			GUESTROOTPASS="$REPLY"
+		fi
+		printf "\n" # \n eaten by noecho
+
+	fi
+
+	if [[ -n "$CONFFILE" ]]; then
+		if [[ -d "$CONFFILE" ]]; then
+			CONFFILE="$CONFFILE/${NAME}.conf"
+		# else
+		#	we already have a valid config file name
+		fi
+	else
+		CONFFILE="${NAME}.conf"
+	fi
+
+	echo "NAME           = $NAME"
+	echo "UTSNAME        = $UTSNAME"
+	echo "ROOTFS         = $ROOTFS"
+	echo "CONFFILE       = $CONFFILE"
+	echo "ARCHVARIANT    = $ARCHVARIANT"
+	echo "IPV4           = $IPV4"
+	echo "GATEWAY        = $GATEWAY"
+	echo "CVMFSCONFIG    = $CVMFSCONFIG"
+
+	echo -e "Thanks! Now sit back and relax while your micro-gentoo brews...\n\n"
+	# nice pondering material
+	if which fortune > /dev/null 2>&1 ; then
+		echo '-----------------------------------------------------------------'
+		if which cowsay > /dev/null 2>&1 ; then
+			cowsay `fortune -s`
+		else
+			fortune
+		fi
+		echo -e "-----------------------------------------------------------------\n"
+	fi
+}
+
+create()
+{
+	configure
+
+	# never hurts to have a fail-safe.
+	[[ -n "${NAME//\/}" ]] \
+		|| die 8 "\$NAME (%s) IS EMPTY OR MADE OF ONLY DIRECTORY SEPERATORS, THIS IS *VERY* BAD!\n" "$NAME"
+
+	# the rootfs name will be built with the container name
+	ROOTFS="./${CVMFSDIR}"
+
+	# check if the conffile already exists
+	[[ -e "$CONFFILE" ]] && die 18 "Error: config file (%s) already exists!\n" "$CONFFILE"
+
+	#write_lxc_configuration \
+	#	|| die 1 "Error: Failed to write LXC configuration.\n"
+
+	#write_distro_inittab \
+	#	|| die 1 "Error: Failed to write changes to inittab.\n"
+
+	#write_distro_hostname \
+	#	|| die 1 "Error: Failed to write hostname.\n"
+
+	#populate_dev
+
+	#write_distro_fstab \
+	#	|| die 1 "Error: Failed to write fstab\n"
+
+	#write_distro_timezone \
+	#	|| die 1 "Error: Failed to write timezone\n"
+
+	#write_distro_network \
+	#	|| die 1 "Error: Failed to write network configuration\n"
+
+	#write_distro_init_fixes \
+	#	|| die 1 "Error: Failed to write init fixes\n"
+
+	#set_guest_root_password \
+	#	|| die 1 "Error: Failed to set guest root password\n"
+
+}
+
+# Note: assuming uid==0 is root -- might break with userns??
+if [ "$(id -u)" != "0" ]; then
+	echo "This script should be run as 'root'"
+	exit 1
+fi
+
+OPTIND=2
+while getopts "i:g:n:u:p:o:r:c:q" opt; do
+	case "$opt" in
+		i) IPV4="$OPTARG" ;;
+		g) GATEWAY="$OPTARG" ;;
+		n) NAME="$OPTARG" ;;
+		u) UTSNAME="$OPTARG" ;;
+		p) GUESTROOTPASS="$OPTARG" ;;
+		o) CVMFSCONFIG="$OPTARG" ;;
+		r) CVMFSREPO="$OPTARG" ;;
+		c) CVMFSDIR="$OPTARG" ;;
+		q) QUIET=Yes ;;
+		\?) ;;
+	esac
+done
+
+case "$1" in
+	create)
+		create;;
+#	destroy)
+#		destroy
+#		die 16 "destroy is to be removed\n" ;;
+#	fetch)
+#		fetch;;
+#	help)
+#		help;;
+#	purge)
+#		purge
+#		die 16 "purge is to be removed\n" ;;
+#	*)
+#		help
+#		exit 1;;
+esac
+
