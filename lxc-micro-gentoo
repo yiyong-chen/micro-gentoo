@@ -33,9 +33,16 @@ umask 022
 mount_cvmfs()
 {
 	# probe the cvmfs repo
-	
+	cvmfs_config probe $CVMFSREPO
+	if [[$? -ne 0 ]]; then
+		die 18 "ERROR: Failed to probe $CVMFSREPO repo.\n"
+	fi
 
 	# mount cvmfs repo
+	cvmfs2 -o config=$CVMFSCONFIG $CVMFSREPO $CVMFSDIR
+	if [[$? -ne 0 ]]; then
+		die 18 "ERROR: Failed to mount $CVMFSREPO repo.\n"
+	fi
 }
 
 configure()
