@@ -474,10 +474,23 @@ set_guest_root_password()
 mount_cvmfsrepo()
 {	
 	# probe the cvmfs repo
-	cvmfs_config probe $CVMFSREPO
-	if [[$? -ne 0 ]]; then
+	`cvmfs_config probe $CVMFSREPO`
+	if [[ $? -ne 0 ]]; then
 		die 18 "ERROR: Failed to probe $CVMFSREPO repo.\n"
  	fi
+
+	# mount the cvmfs repo
+	CVMFS_RO=/tmp/$CVMFSREPO/cvmfs_ro
+	CVMFS_RW=/tmp/$CVMFSREPO/cvmfs_rw
+	mkdir -p $CVMFS_RO
+	mkdir -p $CVMFS_RW
+
+	cvmfs2 -o config=$CVMFSCONFIG $CVMFSREPO $CVMFS_RO
+	if [[ $? -ne 0 ]]; then
+		die 18 "ERROR: Failed to mount $CVMFSREPO read-only repo. $?\n"
+ 	fi
+ 
+	mount -t aufs -o "dirs=${CVMFS_RW}=rw:${CVMFS_RO}=ro" root "${CVMFSDIR}"
 }
 
 fetch_stage3()
@@ -600,8 +613,8 @@ configure()
 	echo "IPV4           = $IPV4"
 	echo "GATEWAY        = $GATEWAY"
 	echo "CVMFSCONFIG    = $CVMFSCONFIG"
-	echo "CVMFSREPO		 = $CVMFSREPO"
-	echo "CVMFSDIR		 = $CVMFSDIR"
+	echo "CVMFSREPO	 = $CVMFSREPO"
+	echo "CVMFSDIR	 = $CVMFSDIR"
 
 	echo -e "Thanks! Now sit back and relax while your gentoo brews...\n\n"
 	# nice pondering material
