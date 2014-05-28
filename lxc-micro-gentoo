@@ -239,26 +239,6 @@ setup_portage()
 	FEATURES="\$FEATURES split-elog"
 	EOF
 
-	if [[ "$PORTAGE_SOURCE" == "none" ]]; then
-		printf "Skipping portage tree setup\n"
-	else
-		# We need to set up the portage tree
-		if [[ -z "$PORTAGE_SOURCE" ]]; then
-			execute_exclusively "portage" fetch_portage \
-				|| die 1 "Error: unable to fetch a portage snapshot.\n"
-		fi
-
-		# PORTAGE_SOURCE will be set by fetch_portage.
-		if [[ -f "$PORTAGE_SOURCE" ]]; then
-			printf "Extracting the portage tree into %s/var/portage/tree...\n" "$ROOTFS"
-			tar -xp --strip-components 1 -C "$ROOTFS/var/portage/tree/" -f "$PORTAGE_SOURCE" \
-				|| die 2 "Error: unable to extract the portage tree.\n"
-		elif [[ -d "$PORTAGE_SOURCE" ]]; then
-			printf "Will bind mount the portage tree from the host (%s).\n" "$PORTAGE_SOURCE"
-		else
-			printf "Warning: I don't know what to do with this portage source (%s)\n" "$PORTAGE_SOURCE"
-		fi
-	fi
 }
 
 # custom network configuration
@@ -645,6 +625,8 @@ create()
 
 	mount_cvmfsrepo \
 		|| die 1 "Error: Failed to mount the cvmfs repo"
+
+	setup_portage
 
 	write_lxc_configuration \
 		|| die 1 "Error: Failed to write LXC configuration.\n"
