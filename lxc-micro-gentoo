@@ -1,47 +1,5 @@
 #!/bin/bash
 
-###############################################################################
-#
-#  lxc-gentoo : script to create a gentoo lxc guest
-#  
-#   license: 
-#     This program is free software: you can redistribute it and/or modify
-#     it under the terms of the GNU General Public License as published by
-#     the Free Software Foundation, either version 3 of the License, or
-#     (at your option) any later version.
-#  
-#     This program is distributed in the hope that it will be useful,
-#     but WITHOUT ANY WARRANTY; without even the implied warranty of
-#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#     GNU General Public License for more details.
-#  
-#     You should have received a copy of the GNU General Public License
-#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-#   requires:
-#    - lxc-utils package
-#    - linux kernel with relevant options enabled (see lxc-checkconfig)
-#    - wget and a working internet connection for HTTP fetches
-#
-#   output environment description:
-#    - uses the latest stage3 and portage (ie: 'very latest gentoo')
-#    - creates a veth-connected guest
-#       - a virtual ethernet interface appears to the guest as 'eth0' and the
-#         host as '<guestname>' (max 15 characters; less show on 'ifconfig',
-#         use iputils' 'ip addr' instead)
-#       - guests can instead use physical interface, vlan, etc.
-#    - typical startup time is 0.2-0.3 seconds
-#    - very fast disk IO (unlike paravirtualised solutions)
-#   
-#   notes:
-#    - dedicated to all fellow ethical unix hackers who do not work for 
-#      morally corrupt governments and corporations: use your powers for good!
-#
-#   authors: Fedja Beader, Anders Larsson, Julien Sanchez, Walter Stanish,
-#            Guillaume Zitta, and others.
-#
-###############################################################################
-
 CACHE="${CACHE:-/var/cache/lxc/gentoo}"
 alias wget="wget --timeout=8 --read-timeout=15 -c -t10 -nd"
 
@@ -54,9 +12,6 @@ GUESTROOTPASS="$GUESTROOTPASS"
 ARCH="${ARCH:-amd64}"
 ARCHVARIANT="${ARCHVARIANT:-${ARCH}}"
 CONFFILE="$CONFFILE"
-MIRROR="${MIRROR:-http://distfiles.gentoo.org}"
-STAGE3_TARBALL="${STAGE3_TARBALL}"
-PORTAGE_SOURCE="$PORTAGE_SOURCE"
 
 # These paths are within the container so do not need to obey configure prefixes
 INITTAB="/etc/inittab"
@@ -68,34 +23,6 @@ umask 022
 ################################################################################
 #                        Various helper functions
 ################################################################################
-
-# param: $1: the name of the lock
-# The rest contain the command to execute and its parameters
-execute_exclusively()
-{
-	mkdir -p /var/lock/subsys
-
-	local lock_name="$1"
-	shift 1
-
-	{
-		printf "Attempting to obtain an exclusive lock (timeout: 30 min) named \"%s\"...\n" "$lock_name"
-
-		printf -v time_started "%(%s)T" "-1"
-		flock -x -w 1800  50
-
-		if [[ $? -ne 0 ]]; then
-			printf " => unable to obtain after %s seconds, aborting.\n" "$(($(printf "%(%s)T" "-1") - $time_started))"
-			return 2
-		else
-			printf " => done, took %s seconds.\n" "$(($(printf "%(%s)T" "-1") - $time_started))"
-		fi
-
-		printf " => Executing \"%s\"\n" "$*"
-		"$@"
-
-	} 50> "/var/lock/subsys/$lock_name"
-}
 
 # Please use these suggested error codes:
 # die 1 ... -- general/unspecified failure
@@ -173,17 +100,17 @@ write_distro_fstab()
 	EOF
 }
 
-#write_distro_timezone()
-#{
-#	if [ -e /etc/localtime ]; then
-#		# duplicate host timezone
-#		cat /etc/localtime > "$ROOTFS/etc/localtime"
-#	else
-#		# otherwise set up UTC
-#		rm "$ROOTFS/etc/localtime" > /dev/null 2>&1
-#		ln -s ../usr/share/zoneinfo/UTC "$ROOTFS/etc/localtime"
-#	fi
-#}
+write_distro_timezone()
+{
+	if [ -e /etc/localtime ]; then
+		# duplicate host timezone
+		cat /etc/localtime > "$ROOTFS/etc/localtime"
+	else
+		# otherwise set up UTC
+		rm "$ROOTFS/etc/localtime" > /dev/null 2>&1
+		ln -s ../usr/share/zoneinfo/UTC "$ROOTFS/etc/localtime"
+	fi
+}
 
 # custom inittab
 write_distro_inittab()
@@ -374,10 +301,6 @@ write_lxc_configuration()
 
 	EOF
 
-#	if [[ -d "$PORTAGE_SOURCE" ]]; then
-#		printf "lxc.mount.entry=%s var/portage/tree none ro,bind 0 0\n" "$PORTAGE_SOURCE" >> "$CONFFILE"
-#	fi
-
 	cat <<- EOF >> "$CONFFILE"
 
 	# console access
@@ -464,71 +387,6 @@ mount_cvmfsrepo()
 	mount -t aufs -o "dirs=${CVMFS_RW}=rw:${CVMFS_RO}=ro" root "${CVMFSDIR}"
 }
 
-fetch_stage3()
-{
-	# base stage3 URL
-	local stage3url="$MIRROR/releases/$ARCH/autobuilds"
-
-	# get latest-stage3....txt file for subpath
-	mkdir -p "$CACHE"
-	local stage3latestSubPathUrl="$stage3url/latest-stage3-${ARCHVARIANT}.txt"
-
-	printf "Determining path to latest Gentoo %s (%s) stage3 archive...\n" "$ARCH" "$ARCHVARIANT"
-	printf " => downloading and processing %s\n" "$stage3latestSubPathUrl"
-
-	local -a array_of_words
-	array_of_words=($(wget -q -O - "$stage3latestSubPathUrl")) \
-		|| printf " => Failed.\n"
-
-	# take the last word and convert it to string form:
-	latest_stage3_subpath="${array_of_words[-1]}"
-	printf " => Got: %s\n" "$latest_stage3_subpath"
-
-
-	# Download the actual stage3
-	local output_file="$CACHE/stage3-$ARCH-$latest_stage3_subpath"
-	if [[ -f "$output_file" ]]; then
-		printf "Skipping download of stage3 as it is already present.\n"
-	else
-		printf "Downloading the actual stage3 tarball...\n"
-
-		#  - ensure output directory exists
-		local output_dir="${output_file%/*}"
-		mkdir -p "$output_dir"
-
-		#  - grab
-		local input_url="$stage3url/$latest_stage3_subpath"
-		printf " => %s ...\n" "$input_url"
-
-		wget -O "$output_file" "$input_url" \
-			|| die 6 "Error: unable to fetch\n"
-		printf " => saved to: %s\n" "$output_file"
-	fi
-
-	# used by calling function
-	STAGE3_TARBALL="$output_file"
-}
-
-fetch_portage()
-{
-	local url="$MIRROR/snapshots/portage-latest.tar.bz2"
-	local dest="$CACHE/portage-latest.tar.bz2"
-
-	mkdir -p "$CACHE"
-	if [[ ! -f "$dest" ]]; then
-		# don't update
-		printf "Downloading Gentoo portage (software build database) snapshot...\n"
-
-		wget -O "$dest" "$url" \
-			|| die 6 "Error: unable to fetch\n"
-
-		printf " => done.\n"
-	fi
-
-	# used by calling function
-	PORTAGE_SOURCE="$dest"
-}
-
 configure()
 {
 	if [[ -z ${QUIET} ]]; then
@@ -572,15 +430,11 @@ configure()
 
 	echo "NAME           = $NAME"
 	echo "UTSNAME        = $UTSNAME"
-	#echo "ROOTFS         = $ROOTFS"
+	echo "ROOTFS         = $ROOTFS"
 	echo "CONFFILE       = $CONFFILE"
 	echo "ARCH           = $ARCH"
 	echo "ARCHVARIANT    = $ARCHVARIANT"
-	#echo "STAGE3_TARBALL = $STAGE3_TARBALL"
-	#echo "GUESTROOTPASS  = (not shown)"
-	#echo "MIRROR         = $MIRROR"
-	#echo "PORTAGE_SOURCE = $PORTAGE_SOURCE"
-	#echo "CACHE          = $CACHE"               
+	echo "CACHE          = $CACHE"               
 	echo "IPV4           = $IPV4"
 	echo "GATEWAY        = $GATEWAY"
 	echo "CVMFSCONFIG    = $CVMFSCONFIG"
@@ -669,17 +523,12 @@ help()
 			Current/Default: ${ARCH}
 		-p GUESTROOTPASS : password for root account
 			Current/Default: ${GUESTROOTPASS}
-		-m MIRROR : mirror for stage3 and Portage archive
-			Current/Default: ${MIRROR}
-		-t STAGE3_TARBALL : path to a stage3 archive to use
-			Specifying this option will avoid fetching stage (or asking for arch, variant and mirror)
-			Current: ${STAGE3_TARBALL} Default: null
-		-P PORTAGE_SOURCE : path to a custom portage to use. Can be one of:
-			 - tarball -- will be extracted
-			 - directory -- will be bind-mounted read-only
-			 - "none" -- do not set up a portage tree
-			A portage snapshot will be downloaded if not specified
-			Current: "$PORTAGE_SOURCE" Default: ""
+		-o CVMFSCONFIG : cvmfs configure file
+			Current/Default: ${CVMFSCONFIG}
+		-r CVMFSREPO : cvmfs gentoo repo
+			Current/Default: ${CVMFSREPO}
+		-c CVMFSDIR : cvmfs repo's rootfs
+			Current/Default: ${CVMFSDIR}
 
 	This script is a helper to create Gentoo system containers.
 
@@ -691,17 +540,9 @@ help()
 	default, env, cmdline option
 
 	Example :
-	$ GATEWAY=10.0.0.254 ./lxc-gentoo create -i 10.0.0.1/24 -n gentooserver -u gentooserver
+	$ GATEWAY=10.0.0.254 ./lxc-gentoo create -i 10.0.0.1/24 -n gentooserver -u gentooserver -o cvmfs_config_file -r cvmfs_repo -c cvmfs_dir
 
 	An interactive script will ask you for various information.
-
-	The first creation will download a Gentoo stage3 and portage
-	snapshot and store it into a cache at "$CACHE".
-
-	If you wish to remove the cache, point your file manager/shell into
-	"$CACHE" and remove the files you consider unneeded.
-	If you wish to update, remove the files that you consider unneeded,
-	next lxc-gentoo create run will re-download needed ones.
 
 	To destroy the container, just remove <container_name>* wherever you created it.
 	Are you sure it is not running at the moment? (use lxc-stop/kill -n <container_name> to stop/kill it.
@@ -711,24 +552,6 @@ help()
 	(PS: Unix hackers with a conscience do not work for morally corrupt
 		corporations or governments. Use your powers for good!)
 	EOF
-}
-
-purge()
-{
-	cat <<- EOF
-	If you wish to remove the cache, point your file manager/shell into
-	"$CACHE" and remove the files you consider unneeded.
-	If you wish to update, remove the files that you consider unneeded,
-	next lxc-gentoo create run will re-download needed ones.
-	EOF
-}
-
-fetch()
-{
-	configure
-	# download
-	execute_exclusively "${ARCH}_${ARCHVARIANT}_rootfs" fetch_stage3
-	execute_exclusively "portage" fetch_portage
 }
 
 # Note: assuming uid==0 is root -- might break with userns??
@@ -760,13 +583,8 @@ case "$1" in
 	destroy)
 		destroy
 		die 16 "destroy is to be removed\n" ;;
-	fetch)
-		fetch;;
 	help)
 		help;;
-	purge)
-		purge
-		die 16 "purge is to be removed\n" ;;
 	*)
 		help
 		exit 1;;
