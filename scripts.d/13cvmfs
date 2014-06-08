@@ -1,0 +1,174 @@
+#!/bin/sh
+#===========================
+#FOR:BUILD
+#===========================
+
+# Fuse
+echo user_allow_other > ${DESTDIR}/etc/fuse.conf
+
+# Require some config files that reside on packages.d
+require_versioned_package cvmfs ${CVMFS_STRONG_VERSION}
+require_versioned_package curl ${CURL_STRONG_VERSION}
+
+# Cvmfs binaries
+require_package cvmfs-config
+
+#===========================
+#FOR:RUN
+#===========================
+
+# Logging
+log_start "Starting CernVM File System..."
+
+# Setup cvmfs options
+CVMFS_SERVER="hepvm.cern.ch"
+CVMFS_REPOS="cernvm-devel.cern.ch"
+auto_proxy=$(curl -f --connect-timeout 10 http://cernvm.cern.ch/config 2>/dev/null | grep ^CVMFS_HTTP_PROXY= | sed s/^CVMFS_HTTP_PROXY=//)
+if [ -z "$auto_proxy" ]; then
+  CVMFS_PROXY="\"auto;DIRECT\""
+else
+  CVMFS_PROXY="\"$auto_proxy\""
+fi
+CVMFS_URL=""
+CERNVM_ARCH=$(uname -m)
+CERNVM_PATH=""
+
+# Parse command line options
+for x in $(cat /proc/cmdline); do
+	case $x in
+    	cvmfs_server=*)
+    		CVMFS_SERVER=${x#cvmfs_server=}
+    		;;
+    	cvmfs_repos=*)
+    		CVMFS_REPOS=${x#cvmfs_repos=}
+    		;;
+    	cvmfs_proxy=*)
+    		CVMFS_PROXY=${x#cvmfs_proxy=}
+    		;;
+    	cvmfs_url=*)
+    		CVMFS_URL=${x#cvmfs_url=}
+    		;;
+        cvmfs_repository_tag=*)
+                CVMFS_REPOSITORY_TAG=${x#cvmfs_repository_tag=}
+                ;;
+    	cernvm_path=*)
+    	    CERNVM_PATH=${x#cernvm_path=}
+    	    ;;
+
+    esac
+done
+
+# Apply context information
+[ "x$_UCONTEXT_CVMFS_HTTP_PROXY" != "x" ] && CVMFS_PROXY="$_UCONTEXT_CVMFS_HTTP_PROXY"
+[ "x$_UCONTEXT_CVMFS_BRANCH" != "x" ] && CVMFS_REPOS="$_UCONTEXT_CVMFS_BRANCH"
+[ "x$_UCONTEXT_CVMFS_TAG" != "x" ] && CVMFS_REPOSITORY_TAG="$_UCONTEXT_CVMFS_TAG"
+[ "x$_UCONTEXT_CVMFS_SERVER" != "x" ] && CVMFS_SERVER="$_UCONTEXT_CVMFS_SERVER"
+
+# Build path and URL
+if [ -z "$CVMFS_URL" ]; then
+  for this_server in $(echo "$CVMFS_SERVER" | tr , " "); do
+    this_url=http://${this_server}/cvmfs/${CVMFS_REPOS}
+    if [ -z "$CVMFS_URL" ]; then
+      CVMFS_URL="\"${this_url}"
+    else
+      CVMFS_URL="${CVMFS_URL};${this_url}"
+    fi
+  done
+  CVMFS_URL="${CVMFS_URL}\""
+fi
+
+# Prepare cache dir
+CVMFS_CACHE="${ROOT_RW}/cache"
+[ ! -d "${CVMFS_CACHE}" ] && mkdir -p "${CVMFS_CACHE}"
+
+# Mount CVMFS in the ROOT_RO directory
+ulimit -n 65536
+
+# Set cache size
+if [ ${ROOT_SIZE_MB} -gt 4000 ]; then
+  CVMFS_QUOTA_LIMIT=2000
+else
+  CVMFS_QUOTA_LIMIT=$((${ROOT_SIZE_MB}/2))
+fi
+
+CVMFS_FRESH=1
+if [ -f ${ROOT_RW}/aux/cvmfs_snapshot ]; then
+  CVMFS_FRESH=0
+  CVMFS_ROOT_HASH=$(head -n1 ${ROOT_RW}/aux/cvmfs_snapshot)
+  CVMFS_REPOSITORY_TAG=$(tail -n1 ${ROOT_RW}/aux/cvmfs_snapshot)
+fi
+
+cat <<EOF > /etc/cvmfs/config.d/${CVMFS_REPOS}.conf
+CVMFS_CACHE_BASE=${CVMFS_CACHE}
+CVMFS_NFILES=65536
+CVMFS_RELOAD_SOCKETS=${CVMFS_CACHE}
+CVMFS_QUOTA_LIMIT=${CVMFS_QUOTA_LIMIT}
+CVMFS_SERVER_URL=${CVMFS_URL}
+CVMFS_HTTP_PROXY=$(set_quotes "${CVMFS_PROXY}")
+CVMFS_KEYS_DIR=/etc/cvmfs/keys/${CVMFS_REPOS}
+CVMFS_CHECK_PERMISSIONS=yes
+CVMFS_IGNORE_SIGNATURE=no
+CVMFS_AUTO_UPDATE=no
+CVMFS_NFS_SOURCE=no
+CVMFS_PROXY_RESET_AFTER=1800
+CVMFS_MAX_RETRIES=2
+CVMFS_TIMEOUT=10
+CVMFS_TIMEOUT_DIRECT=10
+CVMFS_BACKOFF_INIT=2
+CVMFS_BACKOFF_MAX=12
+CVMFS_USYSLOG=${CVMFS_CACHE}/usyslog
+CVMFS_UID_MAP=${ROOT_RW}/aux/uid_map
+CVMFS_GID_MAP=${ROOT_RW}/aux/gid_map
+EOF
+touch ${ROOT_RW}/aux/uid_map ${ROOT_RW}/aux/gid_map
+
+[ x"$CVMFS_REPOSITORY_TAG" != "x" ] && echo "CVMFS_REPOSITORY_TAG=${CVMFS_REPOSITORY_TAG}" >> /etc/cvmfs/config.d/${CVMFS_REPOS}.conf
+[ x"$CVMFS_ROOT_HASH" != "x" ] && echo "CVMFS_ROOT_HASH=${CVMFS_ROOT_HASH}" >> /etc/cvmfs/config.d/${CVMFS_REPOS}.conf 
+
+mount_cvmfs() {
+  cvmfs2 -o allow_other,config=/etc/cvmfs/config.d/${CVMFS_REPOS}.conf,cvmfs_suid ${CVMFS_REPOS} ${ROOT_RO} 2>/dev/null >/dev/null
+  #cvmfs2 -d -f -o allow_other,config=/etc/cvmfs/config.d/${CVMFS_REPOS}.conf,cvmfs_suid ${CVMFS_REPOS} ${ROOT_RO}
+  local retval=$?
+  local nameserver=$(cat /etc/resolv.conf | grep ^nameserver | head -n1 | awk '{print $2}')
+  echo -n "nameserver set ${nameserver}" | nc local:${CVMFS_CACHE}/${CVMFS_REPOS}/cvmfs_io.${CVMFS_REPOS} > /dev/null
+  local active_proxy=$(xattr ${ROOT_RO} user.proxy)
+  if [ "x$active_proxy" = "xDIRECT" ]; then
+    echo -n "host probe" | nc local:${CVMFS_CACHE}/${CVMFS_REPOS}/cvmfs_io.${CVMFS_REPOS} > /dev/null
+  fi
+  return $retval
+}
+
+mount_cvmfs
+if [ $? -ne 0 ]; then
+  echo "CernVM-FS syslog:"
+  cat ${CVMFS_CACHE}/usyslog
+  echo "CernVM-FS config:"
+  cat /etc/cvmfs/config.d/${CVMFS_REPOS}.conf
+  echo "Kernel command line:"
+  cat /proc/cmdline
+  panic "Unable to mount cvmfs root filesystem!"
+fi
+
+# Export keys
+mkdir -p ${ROOT_RW}/aux/keys
+cp -rf /etc/cvmfs/keys/${CVMFS_REPOS} ${ROOT_RW}/aux/keys/
+
+if [ $CVMFS_FRESH -eq 1 ]; then
+  # TODO xattr from busybox
+  CVMFS_ROOT_HASH=$(xattr ${ROOT_RO} user.root_hash)
+  echo $CVMFS_ROOT_HASH > ${ROOT_RW}/aux/cvmfs_snapshot
+  echo $CVMFS_REPOSITORY_TAG >> ${ROOT_RW}/aux/cvmfs_snapshot
+fi
+
+# Rebase read-only root
+AUFS_RO="${ROOT_RO}/${CERNVM_PATH}"
+
+# Move root to the presistent directory
+AUFS_RW="${ROOT_RW}/persistent"
+[ ! -d "${AUFS_RW}" ] && mkdir -p "${AUFS_RW}"
+
+# Load nested catalog
+ls $AUFS_RO > /dev/null
+
+# Ok
+log_info "connected to ${CVMFS_REPOS}"
