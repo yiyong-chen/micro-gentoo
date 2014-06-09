@@ -32,7 +32,7 @@ export BASEDIR=$(pwd)
 
 # Externally provided versions
 [ -z $UGENTOO_STRONG_VERSION ] && die "UGENTOO_STRONG_VERSION missing"
-#[ -z $KERNEL_STRONG_VERSION ] && die "KERNEL_STRONG_VERSION missing"
+[ -z $KERNEL_STRONG_VERSION ] && die "KERNEL_STRONG_VERSION missing"
 [ -z $BB_STRONG_VERSION ] && die "BB_STRONG_VERSION missing"
 [ -z $CURL_STRONG_VERSION ] && die "CURL_STRONG_VERSION missing"
 [ -z $E2FSPROGS_STRONG_VERSION ] && die "E2FSPROGS_STRONG_VERSION missing"
@@ -40,7 +40,7 @@ export BASEDIR=$(pwd)
 [ -z $SFDISK_STRONG_VERSION ] && die "SFDISK_STRONG_VERSION missing"
 [ -z $CVMFS_STRONG_VERSION ] && die "CVMFS_STRONG_VERSION missing"
 [ -z $EXTRAS_STRONG_VERSION ] && die "EXTRAS_STRONG_VERSION missing"
-#export KERNEL_STRONG_VERSION
+export KERNEL_STRONG_VERSION
 export BB_STRONG_VERSION
 export UGENTOO_STRONG_VERSION
 export CURL_STRONG_VERSION
@@ -57,6 +57,8 @@ echo "[INF] Generating $TARGET"
 # Include functions
 . ${BASEDIR}/include/functions.sh
 
+rm -fr $(DESTDIR)
+mkdir -p $(DESTDIR)
 # Create an empty filesystem
 [ -z "${DESTDIR}" ] && echo "[ERR] Invalid destination directory specified!" && exit 1
 create_empty "${DESTDIR}"
@@ -71,39 +73,39 @@ for F in $(find ${SCRIPTS} -maxdepth 1 -type f -name '[0-9]*' | sort); do
 done
 
 # Copy kernel modules
-#echo "[INF] Generating kernel modules"
-#mkdir -p ${DESTDIR}/lib/modules
-#cp -a ${BASEDIR}/kernel/cernvm-kernel-${KERNEL_STRONG_VERSION}/lib/modules/* ${DESTDIR}/lib/modules/
+echo "[INF] Generating kernel modules"
+mkdir -p ${DESTDIR}/lib/modules
+cp -a ${BASEDIR}/kernel/gentoo-kernel-${KERNEL_STRONG_VERSION}/lib/modules/* ${DESTDIR}/lib/modules/
 
 # Gather library dependencies
-#echo "[INF] Gathering dependend libraries"
-#libs_missing=1
-#while [ $libs_missing -eq 1 ]; do
-#  libs_missing=0
-#  for f in $(find ${DESTDIR} -type f); do 
-#    libs=
-#    if ldd $f >/dev/null 2>&1; then 
-#      libs=$(ldd $f | awk '{print $3}' | grep -v 0x | grep -v '^$')
-#    fi
-#    [ -z "$libs" ] && continue
-#    for l in $libs; do
-#      if [ ! -f ${DESTDIR}$l ]; then
-#        libs_missing=1
-#        cp -v $l ${DESTDIR}$l
-#      fi
-#    done
-#  done
-#done
+echo "[INF] Gathering dependend libraries"
+libs_missing=1
+while [ $libs_missing -eq 1 ]; do
+  libs_missing=0
+  for f in $(find ${DESTDIR} -type f); do 
+    libs=
+    if ldd $f >/dev/null 2>&1; then 
+      libs=$(ldd $f | awk '{print $3}' | grep -v 0x | grep -v '^$')
+    fi
+    [ -z "$libs" ] && continue
+    for l in $libs; do
+      if [ ! -f ${DESTDIR}$l ]; then
+        libs_missing=1
+        cp -v $l ${DESTDIR}$l
+      fi
+    done
+  done
+done
 
 # Finalize
 echo "[INF] Running ldconfig and depmod in ${DESTDIR}"
-#ldconfig -r "${DESTDIR}"
-#depmod -a -b "${DESTDIR}" $KERNEL_STRONG_VERSION
+ldconfig -r "${DESTDIR}"
+depmod -a -b "${DESTDIR}" $KERNEL_STRONG_VERSION
 
 # Build initrd
 echo "[INF] Compressing init ramdisk"
-#cd "${DESTDIR}"
-#find . | cpio -H newc -o | xz -9 --check=crc32 > ${TARGET}
+cd "${DESTDIR}"
+find . | cpio -H newc -o | xz -9 --check=crc32 > ${TARGET}
 
 # Remove temporary dir
 echo $DESTDIR
