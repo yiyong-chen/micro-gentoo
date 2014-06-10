@@ -30,18 +30,18 @@ initrd.$(UGENTOO_STRONG_VERSION): rebuild.sh $(wildcard scripts.d/*) $(wildcard 
 	./rebuild.sh
 
 # Kernel and initrd update pack
-#$(IMAGE_DIR)/ucernvm.$(UCERNVM_STRONG_VERSION).tar: initrd.$(UCERNVM_STRONG_VERSION) $(IMAGE_DIR)
-#	$(MAKE) TOP=$(TOP) -C kernel
-#	rm -rf _tarbuild
-#	mkdir -p _tarbuild
-#	cp initrd.$(UCERNVM_STRONG_VERSION) kernel/cernvm-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION).xz _tarbuild
-#	echo "version=$(UCERNVM_STRONG_VERSION)" > _tarbuild/apply
-#	echo "kernel=vmlinuz-$(KERNEL_STRONG_VERSION).xz" >> _tarbuild/apply
-#	echo "initrd=initrd.$(UCERNVM_STRONG_VERSION)" >> _tarbuild/apply
-#	echo "cmdline=" >> _tarbuild/apply
-#	cd _tarbuild && tar cfv ucernvm.$(UCERNVM_STRONG_VERSION).tar *
-#	mv _tarbuild/ucernvm.$(UCERNVM_STRONG_VERSION).tar $(IMAGE_DIR)/
-#	rm -rf _tarbuild
+$(IMAGE_DIR)/ugentoo.$(UGENTOO_STRONG_VERSION).tar: initrd.$(UGENTOO_STRONG_VERSION) $(IMAGE_DIR)
+	$(MAKE) TOP=$(TOP) -C kernel
+	rm -rf _tarbuild
+	mkdir -p _tarbuild
+	cp initrd.$(UGENTOO_STRONG_VERSION) kernel/gentoo-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION) _tarbuild
+	echo "version=$(UGENTOO_STRONG_VERSION)" > _tarbuild/apply
+	echo "kernel=vmlinuz-$(KERNEL_STRONG_VERSION)" >> _tarbuild/apply
+	echo "initrd=initrd.$(UGENTOO_STRONG_VERSION)" >> _tarbuild/apply
+	echo "cmdline=" >> _tarbuild/apply
+	cd _tarbuild && tar cfv ugentoo.$(UGENTOO_STRONG_VERSION).tar *
+	mv _tarbuild/ugentoo.$(UGENTOO_STRONG_VERSION).tar $(IMAGE_DIR)/
+	rm -rf _tarbuild
 
 # uCernVM root file system tree
 #$(CERNVM_ROOTTREE)/version: boot initrd.$(UCERNVM_STRONG_VERSION)

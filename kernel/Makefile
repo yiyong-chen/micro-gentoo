@@ -9,6 +9,7 @@ $(KERNEL_DIR)/~done:
 	rm -rf $(KERNEL_DIR)
 	mkdir -p $(KERNEL_DIR)
 	cd $(KERNEL_DIR) && mkdir -p lib/modules && cd lib/modules && ln -s /lib/modules/$(KERNEL_STRONG_VERSION) $(KERNEL_STRONG_VERSION)
+	cp /lib/modules/$(KERNEL_STRONG_VERSION)/build/arch/x86/boot/bzImage $(KERNEL_DIR)/vmlinuz-$(KERNEL_STRONG_VERSION)
 	touch $(KERNEL_DIR)/~done
 
 clean:
