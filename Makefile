@@ -44,36 +44,36 @@ $(IMAGE_DIR)/ugentoo.$(UGENTOO_STRONG_VERSION).tar: initrd.$(UGENTOO_STRONG_VERS
 	rm -rf _tarbuild
 
 # uCernVM root file system tree
-#$(CERNVM_ROOTTREE)/version: boot initrd.$(UCERNVM_STRONG_VERSION)
-#	$(MAKE) TOP=$(TOP) -C kernel
-#	rm -rf $(CERNVM_ROOTTREE)
-#	mkdir -p $(CERNVM_ROOTTREE)
-#	cd boot && gtar -c --exclude=.svn -f - . .ucernvm_boot_loader | (cd ../$(CERNVM_ROOTTREE) && gtar -xf -)
-#	for file in \
-	  $(CERNVM_ROOTTREE)/isolinux/isolinux.cfg \
-	  $(CERNVM_ROOTTREE)/boot/grub/menu.lst; \
+$(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
+	$(MAKE) TOP=$(TOP) -C kernel
+	rm -rf $(GENTOO_ROOTTREE)
+	mkdir -p $(GENTOO_ROOTTREE)
+	cd boot && tar -c --exclude=.svn -f - . .ugentoo_boot_loader | (cd ../$(GENTOO_ROOTTREE) && tar -xf -)
+	for file in \
+	  $(GENTOO_ROOTTREE)/isolinux/isolinux.cfg \
+	  $(GENTOO_ROOTTREE)/boot/grub/menu.lst; \
 	do \
-	  sed -i -e 's/UCERNVM_VERSION/$(UCERNVM_VERSION)/' $$file; \
-	  sed -i -e 's/UCERNVM_STRONG_VERSION/$(UCERNVM_STRONG_VERSION)/' $$file; \
+	  sed -i -e 's/UGENTOO_VERSION/$(UGENTOO_VERSION)/' $$file; \
+	  sed -i -e 's/UGENTOO_STRONG_VERSION/$(UGENTOO_STRONG_VERSION)/' $$file; \
 	  sed -i -e 's/KERNEL_STRONG_VERSION/$(KERNEL_STRONG_VERSION)/' $$file; \
-	  sed -i -e 's/CERNVM_REPOSITORY/$(CERNVM_REPOSITORY)/' $$file; \
-	  sed -i -e 's/CERNVM_SERVER/$(CERNVM_SERVER)/' $$file; \
-	  sed -i -e 's/CERNVM_SYSTEM/$(CERNVM_SYSTEM)/' $$file; \
+	  sed -i -e 's/UGENTOO_REPOSITORY/$(UGENTOO_REPOSITORY)/' $$file; \
+	  sed -i -e 's/UGENTOO_SERVER/$(UGENTOO_SERVER)/' $$file; \
+	  sed -i -e 's/UGENTOO_SYSTEM/$(UGENTOO_SYSTEM)/' $$file; \
 	done
-#	cp $(CERNVM_ROOTTREE)/isolinux/isolinux.cfg $(CERNVM_ROOTTREE)/isolinux/syslinux.cfg
-#	cp initrd.$(UCERNVM_STRONG_VERSION) $(CERNVM_ROOTTREE)/cernvm/initrd.img
-#	touch $(CERNVM_ROOTTREE)/.ucernvm_boot_loader
-#	echo "$(CERNVM_REPOSITORY) at $(CERNVM_SYSTEM), uCernVM $(UCERNVM_STRONG_VERSION)" > $(CERNVM_ROOTTREE)/version
+	cp $(UGENTOO_ROOTTREE)/isolinux/isolinux.cfg $(UGENTOO_ROOTTREE)/isolinux/syslinux.cfg
+	cp initrd.$(UGENTOO_STRONG_VERSION) $(UGENTOO_ROOTTREE)/boot/initrd.img
+	touch $(UGENTOO_ROOTTREE)/.ucernvm_boot_loader
+	echo "$(UGENTOO_REPOSITORY) at $(UGENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(UGENTOO_ROOTTREE)/version
 
-#clean:
-#	rm -rf ucernvm-root-*
-#	rm -rf ucernvm-images.*
-#	rm -f initrd.* ucernvm.*.tar ucernvm-*
-#	rm -rf tmp/*
+clean:
+	rm -rf ugentoo-root-*
+	rm -rf ugentoo-images.*
+	rm -f initrd.* ugentoo.*.tar ugentoo-*
+	rm -rf tmp/*
 
-#clean-images:
-#	rm -rf ucernvm-root-*
-#	rm -rf ucernvm-images.*
+clean-images:
+	rm -rf ugentoo-root-*
+	rm -rf ugentoo-images.*
 
 # Image signatures
 #$(IMAGE_DIR)/$(IMAGE_FILE).sha256: $(IMAGE_DIR)/$(IMAGE_FILE)
