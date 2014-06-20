@@ -1,0 +1,8 @@
+default 0
+timeout 3
+fallback 1
+
+title uGentoo UGENTOO_VERSION
+	root (hd0)
+	kernel /gentoo/vmlinuz.gzip initrd=/gentoo/initrd.img root=first noresume crashkernel=1M@16M divider=10 selinux=0 cernvm_path=cvm3 cvmfs_repos=CERNVM_REPOSITORY cvmfs_server=CERNVM_SERVER cvmfs_repository_tag=CERNVM_SYSTEM quiet loglevel=3
+	initrd /gentoo/initrd.img
