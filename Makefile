@@ -5,13 +5,14 @@ include config.mk
 all: release
 
 release: initrd.$(UGENTOO_STRONG_VERSION) $(IMAGE_DIR)/ugentoo.$(UGENTOO_STRONG_VERSION).tar
-#	for branch in $(CERNVM_BRANCHES); do \
-#	  for format in $(IMAGE_FORMATS); do \
-	    #$(MAKE) CERNVM_BRANCH=$$branch IMAGE_FORMAT=$$format \
-	    #  $(IMAGE_DIR)/ucernvm-$$branch.$(UCERNVM_STRONG_VERSION).$$format.sha256; \
+	for branch in $(GENTOO_BRANCHES); do \
+	  for format in $(IMAGE_FORMATS); do \
+	    $(MAKE) GENTOO_BRANCH=$$branch IMAGE_FORMAT=$$format \
+	      $(IMAGE_DIR)/ugentoo-$$branch.$(UGENTOO_STRONG_VERSION).$$format.sha256; \
 	  done \
-#	done
-#	[ $(CERNVM_INCREASE_RELEASE) -eq 1 ] && echo $(UCERNVM_RELEASE)+1 | bc > release || touch release
+	done
+	[ $(GENTOO_INCREASE_RELEASE) -eq 1 ] && echo $(UGENTOO_RELEASE)+1 | bc > release || touch release
+
 $(IMAGE_DIR):
 	mkdir -p $(IMAGE_DIR)
 
@@ -43,7 +44,7 @@ $(IMAGE_DIR)/ugentoo.$(UGENTOO_STRONG_VERSION).tar: initrd.$(UGENTOO_STRONG_VERS
 	mv _tarbuild/ugentoo.$(UGENTOO_STRONG_VERSION).tar $(IMAGE_DIR)/
 	rm -rf _tarbuild
 
-# uCernVM root file system tree
+# uGentoo root file system tree
 $(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
 	$(MAKE) TOP=$(TOP) -C kernel
 	rm -rf $(GENTOO_ROOTTREE)
@@ -60,10 +61,10 @@ $(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
 	  sed -i -e 's/UGENTOO_SERVER/$(UGENTOO_SERVER)/' $$file; \
 	  sed -i -e 's/UGENTOO_SYSTEM/$(UGENTOO_SYSTEM)/' $$file; \
 	done
-	cp $(UGENTOO_ROOTTREE)/isolinux/isolinux.cfg $(UGENTOO_ROOTTREE)/isolinux/syslinux.cfg
-	cp initrd.$(UGENTOO_STRONG_VERSION) $(UGENTOO_ROOTTREE)/boot/initrd.img
-	touch $(UGENTOO_ROOTTREE)/.ucernvm_boot_loader
-	echo "$(UGENTOO_REPOSITORY) at $(UGENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(UGENTOO_ROOTTREE)/version
+	cp $(GENTOO_ROOTTREE)/isolinux/isolinux.cfg $(GENTOO_ROOTTREE)/isolinux/syslinux.cfg
+	cp initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/boot/initrd.img
+	touch $(GENTOO_ROOTTREE)/.ugentoo_boot_loader
+	echo "$(GENTOO_REPOSITORY) at $(GENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(UGENTOO_ROOTTREE)/version
 
 clean:
 	rm -rf ugentoo-root-*
@@ -76,8 +77,8 @@ clean-images:
 	rm -rf ugentoo-images.*
 
 # Image signatures
-#$(IMAGE_DIR)/$(IMAGE_FILE).sha256: $(IMAGE_DIR)/$(IMAGE_FILE)
-#	sha256sum $(IMAGE_DIR)/$(IMAGE_FILE) | awk '{print $1}' \
+$(IMAGE_DIR)/$(IMAGE_FILE).sha256: $(IMAGE_DIR)/$(IMAGE_FILE)
+	sha256sum $(IMAGE_DIR)/$(IMAGE_FILE) | awk '{print $1}' \
 	  > $(IMAGE_DIR)/$(IMAGE_FILE).sha256
 
 # Images as ISO image, file system image, raw harddisk image
@@ -86,21 +87,21 @@ clean-images:
 #	cp kernel/cernvm-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION).xz $(CERNVM_ROOTTREE)/cernvm/vmlinuz.xz
 #	mkisofs -R -o $(IMAGE_DIR)/$(IMAGE_NAME).iso -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table $(CERNVM_ROOTTREE)	
 
-#$(IMAGE_DIR)/$(IMAGE_NAME).hdd: initrd.$(UCERNVM_STRONG_VERSION) $(CERNVM_ROOTTREE)/version
-#	rm -f $(CERNVM_ROOTTREE)/cernvm/vmlinuz*
-#	cp kernel/cernvm-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION).xz $(CERNVM_ROOTTREE)/cernvm/vmlinuz.xz
-#	dd if=/dev/zero of=tmp/$(IMAGE_NAME).hdd bs=1024 count=20480
-#	parted -s tmp/$(IMAGE_NAME).hdd mklabel msdos
-#	parted -s tmp/$(IMAGE_NAME).hdd mkpart primary fat32 0 100%
-#	parted -s tmp/$(IMAGE_NAME).hdd set 1 boot on
-#	losetup -o 512 /dev/loop5 tmp/$(IMAGE_NAME).hdd
-#	mkdosfs /dev/loop5
-#	mkdir tmp/mountpoint-$(IMAGE_NAME) && mount /dev/loop5 tmp/mountpoint-$(IMAGE_NAME)
-#	cd $(CERNVM_ROOTTREE) && gtar -c --exclude=.svn -f - . .ucernvm_boot_loader | (cd ../tmp/mountpoint-$(IMAGE_NAME) && gtar -xf -)
-#	umount tmp/mountpoint-$(IMAGE_NAME) && rmdir tmp/mountpoint-$(IMAGE_NAME)
-#	losetup -d /dev/loop5
-#	syslinux --install --offset 512 --active --mbr --directory /isolinux tmp/$(IMAGE_NAME).hdd
-#	mv tmp/$(IMAGE_NAME).hdd $(IMAGE_DIR)/$(IMAGE_NAME).hdd
+$(IMAGE_DIR)/$(IMAGE_NAME).hdd: initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/version
+	rm -f $(GENTOO_ROOTTREE)/gentoo/vmlinuz*
+	cp kernel/gentoo-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION) $(GENTOO_ROOTTREE)/gentoo/vmlinuz.xz
+	dd if=/dev/zero of=tmp/$(IMAGE_NAME).hdd bs=1024 count=20480
+	parted -s tmp/$(IMAGE_NAME).hdd mklabel msdos
+	parted -s tmp/$(IMAGE_NAME).hdd mkpart primary fat32 0 100%
+	parted -s tmp/$(IMAGE_NAME).hdd set 1 boot on
+	losetup -o 512 /dev/loop5 tmp/$(IMAGE_NAME).hdd
+	mkdosfs /dev/loop5
+	mkdir tmp/mountpoint-$(IMAGE_NAME) && mount /dev/loop5 tmp/mountpoint-$(IMAGE_NAME)
+	cd $(GENTOO_ROOTTREE) && tar -c --exclude=.svn -f - . .ugentoo_boot_loader | (cd ../tmp/mountpoint-$(IMAGE_NAME) && tar -xf -)
+	umount tmp/mountpoint-$(IMAGE_NAME) && rmdir tmp/mountpoint-$(IMAGE_NAME)
+	losetup -d /dev/loop5
+	syslinux --install --offset 512 --active --mbr --directory /isolinux tmp/$(IMAGE_NAME).hdd
+	mv tmp/$(IMAGE_NAME).hdd $(IMAGE_DIR)/$(IMAGE_NAME).hdd
 
 #$(IMAGE_DIR)/$(IMAGE_NAME).tar.gz: $(IMAGE_DIR)/$(IMAGE_NAME).hdd
 #	rm -rf tmp/gce && mkdir -p tmp/gce/mountpoint
