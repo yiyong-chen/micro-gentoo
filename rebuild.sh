@@ -64,8 +64,8 @@ mkdir -p $(DESTDIR)
 create_empty "${DESTDIR}"
 
 # Generate init from runtime
-cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/init"
-chmod +x "${DESTDIR}/init"
+cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/sbin/init"
+chmod +x "${DESTDIR}/sbin/init"
 
 # Run generation scripts
 for F in $(find ${SCRIPTS} -maxdepth 1 -type f -name '[0-9]*' | sort); do

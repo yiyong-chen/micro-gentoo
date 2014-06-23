@@ -207,7 +207,7 @@ function process_file {
     
     # Setup environment
     local T_BUILD=$(mktemp)
-    local T_RUN=${DESTDIR}/init
+    local T_RUN=${DESTDIR}/sbin/init
     chmod +x $T_BUILD
     
     # Process lines

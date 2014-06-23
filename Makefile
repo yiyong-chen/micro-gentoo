@@ -62,15 +62,16 @@ $(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
 	  sed -i -e 's/UGENTOO_SYSTEM/$(UGENTOO_SYSTEM)/' $$file; \
 	done
 	cp $(GENTOO_ROOTTREE)/isolinux/isolinux.cfg $(GENTOO_ROOTTREE)/isolinux/syslinux.cfg
-	cp initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/boot/initrd.img
+	cp initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/gentoo/initrd.img
 	touch $(GENTOO_ROOTTREE)/.ugentoo_boot_loader
-	echo "$(GENTOO_REPOSITORY) at $(GENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(UGENTOO_ROOTTREE)/version
+	echo "$(GENTOO_REPOSITORY) at $(GENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(GENTOO_ROOTTREE)/version
 
 clean:
 	rm -rf ugentoo-root-*
 	rm -rf ugentoo-images.*
 	rm -f initrd.* ugentoo.*.tar ugentoo-*
 	rm -rf tmp/*
+	$(MAKE) clean TOP=$(TOP) -C kernel
 
 clean-images:
 	rm -rf ugentoo-root-*
