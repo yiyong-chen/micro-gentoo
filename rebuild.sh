@@ -26,7 +26,7 @@ die() {
 
 # Setup environment
 #export DESTDIR=$(mktemp -d)
-export DESTDIR=./tmp
+export DESTDIR=$(mktemp -d)
 export SCRIPTS="scripts.d"
 export BASEDIR=$(pwd)
 
@@ -57,15 +57,16 @@ echo "[INF] Generating $TARGET"
 # Include functions
 . ${BASEDIR}/include/functions.sh
 
-rm -fr $(DESTDIR)
-mkdir -p $(DESTDIR)
 # Create an empty filesystem
 [ -z "${DESTDIR}" ] && echo "[ERR] Invalid destination directory specified!" && exit 1
 create_empty "${DESTDIR}"
 
 # Generate init from runtime
-cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/sbin/init"
-chmod +x "${DESTDIR}/sbin/init"
+#cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/sbin/init"
+#chmod +x "${DESTDIR}/sbin/init"
+
+cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/init"
+chmod +x "${DESTDIR}/init"
 
 # Run generation scripts
 for F in $(find ${SCRIPTS} -maxdepth 1 -type f -name '[0-9]*' | sort); do
@@ -81,21 +82,26 @@ cp -a ${BASEDIR}/kernel/gentoo-kernel-${KERNEL_STRONG_VERSION}/lib/modules/* ${D
 echo "[INF] Gathering dependend libraries"
 libs_missing=1
 while [ $libs_missing -eq 1 ]; do
-  libs_missing=0
-  for f in $(find ${DESTDIR} -type f); do 
-    libs=
-    if ldd $f >/dev/null 2>&1; then 
-      libs=$(ldd $f | awk '{print $3}' | grep -v 0x | grep -v '^$')
-    fi
-    [ -z "$libs" ] && continue
-    for l in $libs; do
-      if [ ! -f ${DESTDIR}$l ]; then
-        libs_missing=1
-        cp -v $l ${DESTDIR}$l
-      fi
-    done
-  done
+	libs_missing=0
+	for f in $(find ${DESTDIR} -type f); do
+		libs=
+		if ldd $f >/dev/null 2>&1; then
+			libs=$(ldd $f | awk '{print $3}' | grep -v 0x | grep -v '^$')
+		fi
+		[ -z "$libs" ] && continue
+		for l in $libs; do
+			if [ ! -f ${DESTDIR}$l ]; then
+				libs_missing=1
+				DESTDIR_NAME=`dirname ${DESTDIR}$l`
+				if [ ! -e ${DESTDIR_NAME} ]; then
+					mkdir -p ${DESTDIR_NAME}
+				fi
+				cp -v $l ${DESTDIR}$l
+			fi
+		done
+	done
 done
+
 
 # Finalize
 echo "[INF] Running ldconfig and depmod in ${DESTDIR}"

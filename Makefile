@@ -51,7 +51,7 @@ $(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
 	mkdir -p $(GENTOO_ROOTTREE)
 	cd boot && tar -c --exclude=.svn -f - . .ugentoo_boot_loader | (cd ../$(GENTOO_ROOTTREE) && tar -xf -)
 	for file in \
-	  $(GENTOO_ROOTTREE)/isolinux/isolinux.cfg \
+	  $(GENTOO_ROOTTREE)/extlinux/extlinux.conf \
 	  $(GENTOO_ROOTTREE)/boot/grub/menu.lst; \
 	do \
 	  sed -i -e 's/UGENTOO_VERSION/$(UGENTOO_VERSION)/' $$file; \
@@ -61,7 +61,7 @@ $(GENTOO_ROOTTREE)/version: boot initrd.$(UGENTOO_STRONG_VERSION)
 	  sed -i -e 's/UGENTOO_SERVER/$(UGENTOO_SERVER)/' $$file; \
 	  sed -i -e 's/UGENTOO_SYSTEM/$(UGENTOO_SYSTEM)/' $$file; \
 	done
-	cp $(GENTOO_ROOTTREE)/isolinux/isolinux.cfg $(GENTOO_ROOTTREE)/isolinux/syslinux.cfg
+	cp $(GENTOO_ROOTTREE)/extlinux/extlinux.conf $(GENTOO_ROOTTREE)/extlinux/syslinux.cfg
 	cp initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/gentoo/initrd.img
 	touch $(GENTOO_ROOTTREE)/.ugentoo_boot_loader
 	echo "$(GENTOO_REPOSITORY) at $(GENTOO_SYSTEM), uGentoo $(UGENTOO_STRONG_VERSION)" > $(GENTOO_ROOTTREE)/version
@@ -88,6 +88,27 @@ $(IMAGE_DIR)/$(IMAGE_FILE).sha256: $(IMAGE_DIR)/$(IMAGE_FILE)
 #	cp kernel/cernvm-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION).xz $(CERNVM_ROOTTREE)/cernvm/vmlinuz.xz
 #	mkisofs -R -o $(IMAGE_DIR)/$(IMAGE_NAME).iso -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table $(CERNVM_ROOTTREE)	
 
+
+$(IMAGE_DIR)/$(IMAGE_NAME).img: initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/version
+	rm -f $(GENTOO_ROOTTREE)/gentoo/vmlinuz*
+	cp kernel/gentoo-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION) $(GENTOO_ROOTTREE)/gentoo/vmlinuz.xz
+	qemu-img create -f raw tmp/$(IMAGE_NAME).img 20M
+	parted -s tmp/$(IMAGE_NAME).img mklabel msdos
+	parted -s tmp/$(IMAGE_NAME).img mkpart primary ext3 0 100%
+	parted -s tmp/$(IMAGE_NAME).img set 1 boot on
+	#dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/mbr.bin of=tmp/$(IMAGE_NAME).img
+	losetup -o 512 /dev/loop5 tmp/$(IMAGE_NAME).img
+	mkfs.ext3 -j /dev/loop5
+	sleep 2
+	mkdir tmp/mountpoint-$(IMAGE_NAME) && mount /dev/loop5 tmp/mountpoint-$(IMAGE_NAME)
+	cd $(GENTOO_ROOTTREE) && tar -c --exclude=.svn -f - . .ugentoo_boot_loader | (cd ../tmp/mountpoint-$(IMAGE_NAME) && tar -xf -)
+	extlinux --install tmp/mountpoint-$(IMAGE_NAME)/extlinux
+	sleep 2
+	umount tmp/mountpoint-$(IMAGE_NAME) && rmdir tmp/mountpoint-$(IMAGE_NAME)
+	losetup -d /dev/loop5
+	mv tmp/$(IMAGE_NAME).img $(IMAGE_DIR)/$(IMAGE_NAME).img
+
+
 $(IMAGE_DIR)/$(IMAGE_NAME).hdd: initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTREE)/version
 	rm -f $(GENTOO_ROOTTREE)/gentoo/vmlinuz*
 	cp kernel/gentoo-kernel-$(KERNEL_STRONG_VERSION)/vmlinuz-$(KERNEL_STRONG_VERSION) $(GENTOO_ROOTTREE)/gentoo/vmlinuz.xz
@@ -96,9 +117,11 @@ $(IMAGE_DIR)/$(IMAGE_NAME).hdd: initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTR
 	parted -s tmp/$(IMAGE_NAME).hdd mkpart primary fat32 0 100%
 	parted -s tmp/$(IMAGE_NAME).hdd set 1 boot on
 	losetup -o 512 /dev/loop5 tmp/$(IMAGE_NAME).hdd
-	mkdosfs /dev/loop5
+#	mkdosfs /dev/loop5
+	mkfs.vfat /dev/loop5
 	mkdir tmp/mountpoint-$(IMAGE_NAME) && mount /dev/loop5 tmp/mountpoint-$(IMAGE_NAME)
 	cd $(GENTOO_ROOTTREE) && tar -c --exclude=.svn -f - . .ugentoo_boot_loader | (cd ../tmp/mountpoint-$(IMAGE_NAME) && tar -xf -)
+	sleep 5
 	umount tmp/mountpoint-$(IMAGE_NAME) && rmdir tmp/mountpoint-$(IMAGE_NAME)
 	losetup -d /dev/loop5
 	syslinux --install --offset 512 --active --mbr --directory /isolinux tmp/$(IMAGE_NAME).hdd
@@ -116,4 +139,6 @@ $(IMAGE_DIR)/$(IMAGE_NAME).hdd: initrd.$(UGENTOO_STRONG_VERSION) $(GENTOO_ROOTTR
 #	losetup -d /dev/loop5
 #	cd tmp/gce && tar cvfz $(IMAGE_NAME).tar.gz disk.raw
 #	mv tmp/gce/$(IMAGE_NAME).tar.gz $(IMAGE_DIR)
+
+
 

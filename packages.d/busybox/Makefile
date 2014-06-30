@@ -7,7 +7,9 @@ all: $(BB_BINARY)
 
 $(BB_BINARY):
 	mkdir -p busybox-$(BB_STRONG_VERSION)/sbin
-	curl $(BB_SOURCE) > $(BB_BINARY) 2>/dev/null || rm -rf busybox-$(BB_STRONG_VERSION)
+	#curl $(BB_SOURCE) > $(BB_BINARY) 2>/dev/null || rm -rf busybox-$(BB_STRONG_VERSION)
+	emerge busybox
+	cp /bin/busybox busybox-$(BB_STRONG_VERSION)/sbin
 	chmod +x $(BB_BINARY)
 
 clean:
