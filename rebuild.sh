@@ -62,8 +62,6 @@ echo "[INF] Generating $TARGET"
 create_empty "${DESTDIR}"
 
 # Generate init from runtime
-#cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/sbin/init"
-#chmod +x "${DESTDIR}/sbin/init"
 
 cp "${BASEDIR}/include/runtime-init.sh" "${DESTDIR}/init"
 chmod +x "${DESTDIR}/init"
